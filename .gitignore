@@ -1,0 +1,22 @@
+'.env' 
+# Environment Variables
+.env
+.env.local
+.env.*.local
+
+# Config files with sensitive data
+config.json
+secrets.json
+credentials.json
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Operating System
+.DS_Store
+Thumbs.db
+
+.venv
