@@ -3,138 +3,466 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guess What</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Draw - Explainer</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        body {
-            font-family: 'Comic Sans MS', cursive;
-            background-color: #ffd54f;
+        /* body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+        } */
+        .container {
+            /* display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto; */
+            
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        .game-container {
-            background-color: #ffffff;
-            border-radius: 20px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        .video-section {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 8px;
         }
-        .btn {
-            transition: transform 0.1s;
+        .video-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        .btn:active {
-            transform: scale(0.95);
+        .video-feed {
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
         }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .controls button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+        .controls button:hover {
+            background: #0056b3;
+        }
+        .controls button.muted {
+            background: #dc3545;
+        }
+        .drawing-section {
+            /* position: relative; */
+            margin: 20px;
+            border: 1px solid #ccc;
+            padding: 10px;
+        }
+        #drawingCanvas {
+            border: 2px solid #ccc;
+            border-radius: 8px;
+            background: white;
+            display: block; /* Important for correct positioning */
+        }
+        .drawing-controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #colorPicker {
+            width: 50px;
+            height: 30px;
+            padding: 0;
+            border: none;
+        }
+
+        /* New styles for timer and answer input */
+        .timer-container {
+            margin-top: 10px;
+            padding: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            text-align: center;
+        }
+
+        .timer {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .answer-container {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .answer-input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .answer-submit {
+            padding: 8px 16px;
+            border-radius: 4px;
+            border: none;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+        }
+
+        .answer-submit:hover {
+            background: #0056b3;
+        }
+        
     </style>
 </head>
-<body class="flex items-center justify-center min-h-screen">
-    <div class="game-container p-8 w-full max-w-2xl">
-        <h1 class="text-4xl font-bold text-center mb-6 text-purple-600">Cartoon Drawing Game</h1>
-        
-        <div class="mb-4 text-center">
-            <span id="timer" class="text-2xl font-bold text-red-500">60</span>
-            <span class="text-xl"> seconds remaining</span>
-        </div>
+<body>
+    <div class="container">
+        <div class="video-section">
+            <div class="video-container">
+                <video id="localVideo" class="video-feed" autoplay muted playsinline></video>
+                <video id="remoteVideo" class="video-feed" autoplay playsinline></video>
+                <div class="controls">
+                    <button id="toggleVideo">Toggle Video</button>
+                    <button id="toggleAudio">Toggle Audio</button>
+                </div>
+            </div>
+            <div class="timer-container">
+                <div id="timer" class="timer">
+                    Time left: 60s
+                </div>
+            </div>
 
-        <canvas id="drawingCanvas" class="w-full h-96 border-4 border-dashed border-blue-400 rounded-lg"></canvas>
+            <div class="word-display" style="background: #fff; padding: 10px; margin-top: 10px; text-align: center; border-radius: 4px;">
+                <h3 style="margin: 0;">Your Word:</h3>
+                <div id="currentWord" style="font-size: 24px; font-weight: bold; color: #007bff;"></div>
+            </div>
 
-        <div class="flex justify-center space-x-4 mt-4">
-            <input type="color" id="colorPicker" class="h-10 w-10 rounded-full">
-            <button id="eraser" class="btn bg-yellow-300 text-gray-800 px-4 py-2 rounded-full font-semibold">Eraser</button>
-            <button id="clear" class="btn bg-red-400 text-white px-4 py-2 rounded-full font-semibold">Clear All</button>
+            <div class="scoreboard" style="background: #fff; padding: 10px; margin-top: 10px; text-align: center; border-radius: 4px;">
+                <h3 style="margin: 0;">Correct Guesses: <span id ="score">0</span></h3>
+                <div id="scoreboard" style="font-size: 24px; font-weight: bold; color: #007bff;"></div>
+            </div>
+
+        </div> 
+        <div class="drawing-section">
+            <canvas id="drawingCanvas" width="800" height="600"></canvas>
+            <div class="drawing-controls">
+                <input type="color" id="colorPicker" value="#000000">
+                <button id="clearBtn">Clear Canvas</button>
+                <span id="currentTool">Current Tool: Pen</span>
+            </div>
+    
+            <div class="answer-section" id="answerSection" style="display: none;">
+                <div class="answer-input-container">
+                    <input 
+                        type="text" 
+                        id="answerInput" 
+                        placeholder="Type your answer here..."
+                        class="answer-input"
+                    >
+                    <button id="submitAnswer" class="answer-submit">
+                        Submit Answer
+                    </button>
+                </div>
         </div>
     </div>
-
-    <canvas id="drawingCanvas" width="500" height="500"></canvas>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</div>  
     <script>
-        const canvas = document.getElementById('drawingCanvas');
-        const context = canvas.getContext('2d');
         const socket = io();
+        const role = '{{ role }}';
+        const gameId = '{{ game_id }}';
+        let isDrawing = false;
 
-        let timeRemaining = 60;
-        let countdown;
-        let isTimerRunning = false;
-        let drawing = false;
-        let erasing = false;
-        let currentColor = '#000000';
+        const words = [
+        "dog", "cat", "house", "tree", "car",
+        "book", "phone", "sun", "moon", "fish",
+        "bird", "shoe", "chair", "table", "door"
+        ];
 
-        context.lineWidth = 5;
-        context.lineCap = 'round';
+        let currentWord = "";
 
-        function startTimer() {
-            if (isTimerRunning) return;
-            
-            isTimerRunning = true;
-            timeRemaining = 60;
-            document.getElementById('timer').textContent = timeRemaining;
-
-            countdown = setInterval(() => {
-                timeRemaining--;
-                document.getElementById('timer').textContent = timeRemaining;
-
-                if (timeRemaining <= 0) {
-                    clearInterval(countdown);
-                    alert('Time is up!');
-                    context.clearRect(0, 0, canvas.width, canvas.height);
-                    socket.emit('clearCanvas');
-                    isTimerRunning = false;
-                }
-            }, 1000);
+        function getRandomWord() {
+            const randomIndex = Math.floor(Math.random() * words.length);
+            return words[randomIndex];
         }
 
-        canvas.addEventListener('mousedown', (event) => {
-            drawing = true;
-            context.beginPath();
-            draw(event);
-            startTimer();
+
+
+        // Show/hide answer section based on role
+        document.addEventListener('DOMContentLoaded', () => {
+            const role = '{{ role }}'; // From Flask
+            if (role === 'guesser') {
+             document.getElementById('answerSection').style.display = 'flex';
+            }
         });
 
-        canvas.addEventListener('mouseup', () => {
-            drawing = false;
-            context.beginPath();
+        // sync canvas
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameId = window.location.pathname.split('/').pop();
+            window.gameId = gameId;
+    
+            // const { ctx } = initializeCanvas(true);  // true for drawer mode
+            // setupSocketHandlers(socket, ctx);
+    
+            socket.emit('join', {
+                game_id: gameId,
+                role: 'explainer'
+            });
+        });
+        
+        // WebRTC configuration
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+        
+        let localStream;
+        let peerConnection;
+        let isVideoEnabled = true;
+        let isAudioEnabled = true;
+
+        // Initialize WebRTC
+        async function initializeWebRTC() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                document.getElementById('localVideo').srcObject = localStream;
+
+                // Create peer connection
+                peerConnection = new RTCPeerConnection(configuration);
+                
+                // Add local stream to peer connection
+                localStream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, localStream);
+                });
+
+                // Handle incoming stream
+                peerConnection.ontrack = event => {
+                    document.getElementById('remoteVideo').srcObject = event.streams[0];
+                };
+
+                // Handle ICE candidates
+                // peerConnection.onicecandidate = event => {
+                //     if (event.candidate) {
+                //         socket.emit('ice_candidate', {
+                //             game_id: gameId,
+                //             candidate: event.candidate
+                //         });
+                //     }
+                // };
+
+                // Join room
+                socket.emit('join', {
+                    game_id: gameId,
+                    role: role
+                });
+
+            } catch (error) {
+                console.error('Error accessing media devices:', error);
+            }
+        }
+
+        // Socket event handlers for WebRTC signaling
+        socket.on('user_joined', async (data) => {
+            if (data.count === 2) {
+                if (role === 'explainer') {
+                    currentWord = getRandomWord();
+                    console.log(currentWord);
+                    document.getElementById('currentWord').textContent = currentWord;
+                }
+            }
+        });
+
+        let correctGuesses = 0;
+
+        // Add this to handle when a guesser submits an answer
+        socket.on('submit_guess', (data) => {
+            const submittedGuess = data.guess.toLowerCase().trim();
+            if (submittedGuess === currentWord.toLowerCase()) {
+                // correct guess add up on scoreboard
+                correctGuesses++;
+                
+                //emit correct guess with updated score
+                socket.emit('correct_guess', {
+                    gameId,
+                    score: correctGuesses
+                });
+
+                //update score display
+                document.getElementById('score').textContent = correctGuesses;
+
+
+                //start next round
+                clearCanvas();
+                startTimer();
+                currentWord = getRandomWord();
+                document.getElementById('currentWord').textContent = currentWord;
+            }
+        });
+
+        const events = ['submit_guess'];
+        events.forEach(event => {
+            socket.on(event, (data) => {
+                console.log('📥 Drawer Received:', {
+                    event: event,
+                    data: data
+                });
+            });
+        });
+
+
+        // Media control handlers
+        document.getElementById('toggleVideo').addEventListener('click', () => {
+            isVideoEnabled = !isVideoEnabled;
+            localStream.getVideoTracks().forEach(track => track.enabled = isVideoEnabled);
+            document.getElementById('toggleVideo').classList.toggle('muted', !isVideoEnabled);
+        });
+
+        document.getElementById('toggleAudio').addEventListener('click', () => {
+            isAudioEnabled = !isAudioEnabled;
+            localStream.getAudioTracks().forEach(track => track.enabled = isAudioEnabled);
+            document.getElementById('toggleAudio').classList.toggle('muted', !isAudioEnabled);
+        });
+
+        // Drawing functionality
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        let drawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        // Set initial drawing style
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        socket.on('timer_start', (data) => {
+            console.log('📥 Drawer received timer_start broadcast:', data);
+        });
+
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            // Get the correct coordinates
+            const rect = canvas.getBoundingClientRect();
+            
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Draw line
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(x, y);
+            ctx.stroke();
+
+            // Emit drawing data
+            socket.emit('draw', {
+                game_id: 1,
+                start: { x: lastX, y: lastY },
+                end: { x, y },
+                color: ctx.strokeStyle,
+                lineWidth: ctx.lineWidth
+            });
+            
+            
+
+            // Update last position
+            [lastX, lastY] = [x, y];
+
+            if (!timerStarted) {
+                timerStarted = true;
+                socket.emit('timer_start', { game_id: 1 });
+                startTimer();
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            isDrawing = true;
+            const rect = canvas.getBoundingClientRect();
+            [lastX, lastY] = [e.clientX - rect.left, e.clientY - rect.top];
         });
 
         canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', () => isDrawing = false);
+        canvas.addEventListener('mouseout', () => isDrawing = false);
 
-        function draw(event) {
-            if (!drawing) return;
+        // Color picker handler
+        document.getElementById('colorPicker').addEventListener('input', (e) => {
+            ctx.strokeStyle = e.target.value;
+        });
 
-            const rect = canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
+        // Clear button handler
+        document.getElementById('clearBtn').addEventListener('click', clearCanvas());
 
-            context.strokeStyle = erasing ? '#FFFFFF' : currentColor;
-            context.lineTo(x, y);
-            context.stroke();
-            context.beginPath();
-            context.moveTo(x, y);
-
-            socket.emit('draw', { x, y, color: context.strokeStyle, erasing });
+        function clearCanvas(){
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
         }
 
-        socket.on('draw', (data) => {
-            context.strokeStyle = data.erasing ? '#FFFFFF' : data.color;
-            context.lineTo(data.x, data.y);
-            context.stroke();
-            context.beginPath();
-            context.moveTo(data.x, data.y);
+        // // Handle incoming drawing data
+        // socket.on('draw', (data) => {
+        //     if (data.clear) {
+        //         ctx.clearRect(0, 0, canvas.width, canvas.height);
+        //         return;
+        //     }
+
+        //     ctx.beginPath();
+        //     ctx.strokeStyle = data.color;
+        //     ctx.lineWidth = data.lineWidth;
+        //     ctx.moveTo(data.start.x, data.start.y);
+        //     ctx.lineTo(data.end.x, data.end.y);
+        //     ctx.stroke();
+        // });
+        let timerStarted = false;
+       
+        let timerInterval;
+
+        function startTimer() {
+            let timeLeft = 60;
+            clearInterval(timerInterval);
+
+            timerInterval = setInterval(() => {
+                
+                timeLeft--;
+                document.getElementById('timer').textContent = `Time left: ${timeLeft}s`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert('Time is up!');
+                }
+            
+            }, 1000);
+        }
+       
+
+        // Handle answer submission
+        document.getElementById('submitAnswer')?.addEventListener('click', () => {
+            const answer = document.getElementById('answerInput').value;
+            if (answer.trim()) {
+                socket.emit('submit_answer', {
+                    game_id: '{{ game_id }}',
+                    answer: answer
+            });
+            document.getElementById('answerInput').value = '';
+            }
         });
 
-        socket.on('clearCanvas', () => {
-            context.clearRect(0, 0, canvas.width, canvas.height);
-        });
-
-        document.getElementById('colorPicker').addEventListener('input', (event) => {
-            currentColor = event.target.value;
-            erasing = false;
-        });
-
-        document.getElementById('eraser').addEventListener('click', () => {
-            erasing = true;
-        });
-
-        document.getElementById('clear').addEventListener('click', () => {
-            context.clearRect(0, 0, canvas.width, canvas.height);
-            socket.emit('clearCanvas');
-        });
+        // Initialize WebRTC when page loads
+        initializeWebRTC();
     </script>
 </body>
 </html>

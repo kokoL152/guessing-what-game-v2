@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <title>Guess View</title>
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .video-section {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .video-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        #userVideo {
+            width: 100%;
+            height: 300px;
+            background: #000;
+            border-radius: 8px;
+        }
+        
+        /* .video-feed {
+            width: 100%;
+            height: 300px;
+            background: #000;
+            border-radius: 8px;
+        } */
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .controls button {
+            padding: 8px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .timer-container {
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        .timer {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .drawing-section {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        .answer-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .answer-container input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        .answer-container button {
+            padding: 8px 16px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        canvas {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="video-section">
+            <div class="video-container">
+                <video id="userVideo" autoplay playsinline></video>
+                <!-- /*<video class="video-feed" autoplay playsinline></video>*/ -->
+                <div class="controls">
+                    <button onclick="toggleVideo()">Toggle Video</button>
+                    <button onclick="toggleAudio()">Toggle Audio</button>
+                </div>
+
+                <div class="timer-container">
+                    <div id="timer">Time left: 60s</div>
+                </div>
+
+                <div class="scoreboard">
+                    <div id="scoreboard">Correct Guesses: <span id="score">0</span></div>
+                </div>
+
+            </div>
+        </div>
+
+        <div class="drawing-section">
+            <canvas id="drawingCanvas"></canvas>
+            <div class="answer-container">
+                <input type="text" id="guessInput" placeholder="Enter your guess...">
+                <button onclick="submitGuess()">Submit</button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Connect to Socket.IO
+        const socket = io();
+        let stream = null;
+        const videoElement = document.getElementById('userVideo');
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const gameId = window.location.pathname.split('/').pop();
+            window.gameId = gameId;
+    
+            // const { ctx } = initializeCanvas(false);  // false for viewer mode
+            // setupSocketHandlers(socket, ctx);
+        
+            socket.emit('join', {
+                game_id: gameId,
+                role: 'guesser'
+            });
+        });
+
+        // Video controls
+        async function setupVideo() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: true, 
+                    audio: true 
+                });
+                // document.querySelector('.video-feed').srcObject = stream;
+
+                // Important: Set the stream as the source for the video element
+                videoElement.srcObject = stream;
+                
+                // Play the video
+                await videoElement.play();
+
+            } catch (err) {
+                console.error('Error accessing media devices:', err);
+            }
+
+        }
+
+        function toggleVideo() {
+            if (stream) {
+                const videoTrack = stream.getVideoTracks()[0];
+                videoTrack.enabled = !videoTrack.enabled;
+            }
+            else {
+                // If stream doesn't exist, set it up
+                setupVideo();
+            }
+        }
+
+        function toggleAudio() {
+            if (stream) {
+                const audioTrack = stream.getAudioTracks()[0];
+                audioTrack.enabled = !audioTrack.enabled;
+            }
+        }
+
+        // // Timer functionality
+        // let timeLeft = 60;
+        // const timer = setInterval(() => {
+        //     timeLeft--;
+        //     document.getElementById('timer').textContent = `Time left: ${timeLeft}s`;
+        //     if (timeLeft <= 0) {
+        //         clearInterval(timer);
+        //         alert("Time's up!");
+        //     }
+        // }, 1000);
+
+        // Canvas setup
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = 800;
+        canvas.height = 600;
+
+        canvas.style.pointerEvents = 'none'; // Make canvas read-only
+        document.querySelector('.drawing-section').prepend(canvas);
+
+        // Debug all incoming events
+        const events = ['draw', 'clear_canvas', 'timer_start', 'user_joined', 'correct_guess'];
+        events.forEach(event => {
+            socket.on(event, (data) => {
+                console.log('📥 Drawer Received:', {
+                    event: event,
+                    data: data
+                });
+            });
+        });
+
+        // Handle drawing updates from drawer
+        socket.on('draw', (data) => {
+            ctx.beginPath();
+            ctx.moveTo(data.start.x, data.start.y);
+            ctx.lineTo(data.end.x, data.end.y);
+            ctx.strokeStyle = data.color;
+            ctx.lineWidth = data.width;
+            ctx.stroke();
+            ctx.closePath();
+        });
+
+        // Add this with your other socket listeners
+        socket.on('timer_start', startTimer);
+
+        // Listen for canvas clear events
+        socket.on('clearCanvas', () => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        });
+
+
+        function submitGuess() {
+            const guess = document.getElementById('guessInput').value;
+            socket.emit('submit_guess', {
+                guess: guess,
+                gameId: gameId
+            });
+            document.getElementById('guessInput').value = '';
+        }
+
+        let correctGuesses = 0;
+
+        socket.on('correct_guess', (data) => {
+            
+            correctGuesses++;
+            
+            document.getElementById('score').textContent = correctGuesses;
+
+            clearCanvas();
+            startTimer();
+
+            
+        });
+
+        let timerInterval;
+
+        function startTimer() {
+            let timeLeft = 60;
+            clearInterval(timerInterval);
+
+            timerInterval = setInterval(() => {
+                
+                timeLeft--;
+                document.getElementById('timer').textContent = `Time left: ${timeLeft}s`;
+                
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    alert('Time is up!');
+                }
+            
+            }, 1000);
+        }
+
+        function clearCanvas(){
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            socket.emit('draw', {
+                game_id: gameId,
+                clear: true
+            });
+        }
+
+        // Initialize video on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            setupVideo();
+        });
+    </script>
+</body>
+</html>

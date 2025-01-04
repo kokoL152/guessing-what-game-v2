@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drawing View</title>
+    <style>
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .video-section {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .video-container {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        
+        #userVideo {
+            width: 100%;
+            height: 300px;
+            background: #000;
+            border-radius: 8px;
+        }
+        
+        .controls button {
+            padding: 8px 16px;
+            margin: 5px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .drawing-section {
+            background: #f5f5f5;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .drawing-controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        #drawingCanvas {
+            width: 100%;
+            height: 400px;
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .timer {
+            font-size: 1.2em;
+            font-weight: bold;
+            text-align: center;
+            margin: 10px 0;
+        }
+        
+        #currentTool {
+            padding: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="video-section">
+            <div class="video-container">
+                <video id="userVideo" autoplay playsinline></video>
+                <div class="controls">
+                    <button onclick="toggleVideo()">Toggle Video</button>
+                    <button onclick="toggleAudio()">Toggle Audio</button>
+                </div>
+                <div class="timer-container">
+                    <div id="timer" class="timer">Time left: 60s</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="drawing-section">
+            <canvas id="drawingCanvas"></canvas>
+            <div class="drawing-controls">
+                <button onclick="clearCanvas()">Clear Canvas</button>
+                <span id="currentTool">Current Tool: Pen</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        // Socket.IO setup
+        const socket = io();
+        
+        // Join as drawer
+        socket.emit('join', { role: 'drawer' });
+
+        // Canvas setup
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Set canvas size
+        function resizeCanvas() {
+            canvas.width = canvas.offsetWidth;
+            canvas.height = canvas.offsetHeight;
+        }
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Drawing variables
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+
+        // Drawing event listeners
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mouseout', stopDrawing);
+
+        function startDrawing(e) {
+            isDrawing = true;
+            [lastX, lastY] = getMousePos(canvas, e);
+        }
+
+        function draw(e) {
+            if (!isDrawing) return;
+            
+            const [currentX, currentY] = getMousePos(canvas, e);
+            
+            // Draw on local canvas
+            ctx.beginPath();
+            ctx.moveTo(lastX, lastY);
+            ctx.lineTo(currentX, currentY);
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Emit drawing data
+            socket.emit('draw', {
+                prevX: lastX,
+                prevY: lastY,
+                currX: currentX,
+                currY: currentY,
+                color: ctx.strokeStyle,
+                width: ctx.lineWidth
+            });
+            
+            [lastX, lastY] = [currentX, currentY];
+        }
+
+        function stopDrawing() {
+            isDrawing = false;
+        }
+
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            return [
+                (evt.clientX - rect.left) / (rect.right - rect.left) * canvas.width,
+                (evt.clientY - rect.top) / (rect.bottom - rect.top) * canvas.height
+            ];
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            socket.emit('clearCanvas');
+        }
+
+        // Video handling
+        let stream = null;
+        const videoElement = document.getElementById('userVideo');
+
+        async function setupVideo() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: true,
+                    audio: true
+                });
+                videoElement.srcObject = stream;
+                await videoElement.play();
+            } catch (err) {
+                console.error('Error accessing media devices:', err);
+            }
+        }
+
+        function toggleVideo() {
+            if (stream) {
+                const videoTrack = stream.getVideoTracks()[0];
+                videoTrack.enabled = !videoTrack.enabled;
+            } else {
+                setupVideo();
+            }
+        }
+
+        function toggleAudio() {
+            if (stream) {
+                const audioTrack = stream.getAudioTracks()[0];
+                audioTrack.enabled = !audioTrack.enabled;
+            }
+        }
+
+        // Timer setup
+        let timeLeft = 60;
+        const timer = setInterval(() => {
+            timeLeft--;
+            document.getElementById('timer').textContent = `Time left: ${timeLeft}s`;
+            if (timeLeft <= 0) {
+                clearInterval(timer);
+            }
+        }, 1000);
+
+        // Initialize video on page load
+        document.addEventListener('DOMContentLoaded', setupVideo);
+    </script>
+</body>
+</html>
