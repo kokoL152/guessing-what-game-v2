@@ -6,31 +6,25 @@
     <title>Draw - Explainer</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
     <style>
-        /* body {
-            margin: 0;
-            padding: 20px;
-            font-family: Arial, sans-serif;
-        } */
+        /* structure */
         .container {
-            /* display: grid;
+            max-width: 1200px;
+            padding: 20px;
+            display: grid;
             grid-template-columns: 300px 1fr;
             gap: 20px;
-            max-width: 1200px;
-            margin: 0 auto; */
-            
-            display: flex;
-            flex-direction: column;
-            align-items: center;
         }
+        /* video part */
         .video-section {
             background: #f5f5f5;
-            padding: 10px;
+            padding: 20px;
+            height: 100%;
             border-radius: 8px;
         }
         .video-container {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 15px;
         }
         .video-feed {
             width: 100%;
@@ -42,7 +36,7 @@
             gap: 10px;
             margin-top: 10px;
         }
-        .controls button {
+         .controls button {
             padding: 8px 16px;
             border-radius: 4px;
             border: none;
@@ -55,18 +49,20 @@
         }
         .controls button.muted {
             background: #dc3545;
-        }
+        } 
+        /* drawing part */
         .drawing-section {
-            /* position: relative; */
-            margin: 20px;
-            border: 1px solid #ccc;
-            padding: 10px;
-        }
-        #drawingCanvas {
-            border: 2px solid #ccc;
+            background: #f5f5f5;
             border-radius: 8px;
+            padding: 20px;
+            height: 100%;
+        }
+
+        #drawingCanvas { 
+            border: 1px solid #ddd;
+            border-radius: 4px;
             background: white;
-            display: block; /* Important for correct positioning */
+            /* display: block;  */
         }
         .drawing-controls {
             margin-top: 10px;
@@ -81,7 +77,7 @@
             border: none;
         }
 
-        /* New styles for timer and answer input */
+        /* timer part */
         .timer-container {
             margin-top: 10px;
             padding: 8px;
@@ -95,7 +91,7 @@
             font-weight: bold;
             color: #495057;
         }
-
+        /* answer input */
         .answer-container {
             margin-top: 10px;
             display: flex;
@@ -123,6 +119,8 @@
         .answer-submit:hover {
             background: #0056b3;
         }
+
+        /* live chat */
         
     </style>
 </head>
@@ -155,7 +153,7 @@
 
         </div> 
         <div class="drawing-section">
-            <canvas id="drawingCanvas" width="800" height="600"></canvas>
+            <canvas id="drawingCanvas" width="600" height="400"></canvas>
             <div class="drawing-controls">
                 <input type="color" id="colorPicker" value="#000000">
                 <button id="clearBtn">Clear Canvas</button>
@@ -175,6 +173,8 @@
                     </button>
                 </div>
         </div>
+
+        
     </div>
 </div>  
     <script>
@@ -340,6 +340,7 @@
         // Drawing functionality
         const canvas = document.getElementById('drawingCanvas');
         const ctx = canvas.getContext('2d');
+
         let drawing = false;
         let lastX = 0;
         let lastY = 0;
@@ -413,20 +414,7 @@
             
         }
 
-        // // Handle incoming drawing data
-        // socket.on('draw', (data) => {
-        //     if (data.clear) {
-        //         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        //         return;
-        //     }
-
-        //     ctx.beginPath();
-        //     ctx.strokeStyle = data.color;
-        //     ctx.lineWidth = data.lineWidth;
-        //     ctx.moveTo(data.start.x, data.start.y);
-        //     ctx.lineTo(data.end.x, data.end.y);
-        //     ctx.stroke();
-        // });
+       
         let timerStarted = false;
        
         let timerInterval;
