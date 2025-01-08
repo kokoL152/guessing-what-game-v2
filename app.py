@@ -65,6 +65,18 @@ def handle_submit_guess(data):
 def handle_correct_guess(data):
     emit("correct_guess", data, broadcast=True)
 
+
+@socketio.on('chat_message')
+def handle_chat_message(data):
+    game_id = data['gameId']
+    message = data['message']
+    role = data['role']
+    
+    socketio.emit('chat_message', {
+        'message': message,
+        'role': role
+    }, room=game_id)
+
 @socketio.on('disconnect')
 def on_disconnect():
     for room in rooms:

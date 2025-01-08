@@ -7,19 +7,20 @@
     <title>Guess View</title>
     <style>
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             /* margin: 0 auto; */
             padding: 20px;
             display: grid;
-            grid-template-columns: 300px 1fr;
+            grid-template-columns: 300px 1fr 320px;
             gap: 20px;
             
         }
 
         .video-section {
-            background: #f5f5f5;
+            background: #d9d9d9;
             padding: 20px;
             border-radius: 8px;
+            height: 100%;
         }
 
         .video-container {
@@ -68,16 +69,16 @@
             text-align: center;
         }
 
-        
+        /* drawing part */
         .drawing-section {
-            background: #f5f5f5;
+            background: #d9d9d9;
             padding: 20px;
             border-radius: 8px;
+            height: 100%;
         }
         
         canvas {
-            width: 100%;
-            height: 400px;
+            
             border: 1px solid #ddd;
             border-radius: 4px;
             background: white;
@@ -103,6 +104,63 @@
             border-radius: 4px;
             cursor: pointer;
         }
+
+        
+        /* live chat */
+        .chat-section {
+            background: #d9d9d9;
+            border-radius: 8px;
+            padding: 20px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .chat-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            background-color: white ;
+            
+        }
+        
+        .messages-container {
+            
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: white;
+        }
+
+        .message {
+            margin-bottom: 0.5rem;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            background-color: #ffcccc;
+        }
+
+        .message .sender {
+            font-weight: bold;
+            color: #374151;
+        }
+
+        .input-form {
+            padding: 1rem;
+            border-top: 1px solid #d1d5db;
+        }
+
+        .input-field {
+            width: 90%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+        }
+
+       
 
     </style>
 </head>
@@ -130,12 +188,30 @@
         </div>
 
         <div class="drawing-section">
-            <canvas id="drawingCanvas"></canvas>
+            <canvas id="drawingCanvas" width="600" height="400"></canvas>
             <div class="answer-container">
                 <input type="text" id="guessInput" placeholder="Enter your guess...">
                 <button onclick="submitGuess()">Submit</button>
             </div>
         </div>
+
+        <div class="chat-section">
+            <div class="chat-container">
+                <div class="messages-container" id="messagesContainer">
+                </div>
+                <form class="input-form" id="chatForm">
+                    <input 
+                        type="text" 
+                        id="chatInput" 
+                        class="input-field" 
+                        placeholder="Share your thoughts..."
+                    >
+                </form>
+    
+            
+            </div>
+        </div>
+
     </div>
     <script>
         // Connect to Socket.IO
@@ -285,6 +361,52 @@
                 clear: true
             });
         }
+
+         // Chat
+         function initializeChat() {
+            const chatForm = document.getElementById('chatForm');
+            const chatInput = document.getElementById('chatInput');
+            const messagesContainer = document.getElementById('messagesContainer');
+            const role = window.location.pathname.includes('guess') ? 'guesser' : 'explainer';
+
+            // Handle sending messages
+            chatForm.addEventListener('submit', (e) => {
+                e.preventDefault();// Stop page refresh
+                const message = chatInput.value.trim();
+                
+                if (message) {
+                    // Emit message to server
+                    socket.emit('chat_message', {
+                        gameId: gameId,
+                        message: message,
+                        role: role
+                    });
+                    
+                    chatInput.value = '';
+                }
+            });
+
+            // Handle receiving messages
+            socket.on('chat_message', (data) => {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = 'message';
+                
+                const senderSpan = document.createElement('span');
+                senderSpan.className = 'sender';
+                senderSpan.textContent = `${data.role}: `;
+                
+                messageDiv.appendChild(senderSpan);
+                messageDiv.appendChild(document.createTextNode(data.message));
+                
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            });
+        }
+
+        // Initialize chat when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeChat();
+        });
 
         // Initialize video on page load
         document.addEventListener('DOMContentLoaded', () => {
