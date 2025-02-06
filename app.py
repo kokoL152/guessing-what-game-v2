@@ -3,6 +3,7 @@ from flask_socketio import SocketIO, emit, join_room, leave_room
 import json
 
 app = Flask(__name__, static_url_path='/static', static_folder='static')
+
 socketio = SocketIO(app, cors_allowed_origins="*")
 rooms = {}
 
@@ -64,6 +65,10 @@ def handle_submit_guess(data):
 @socketio.on("correct_guess")
 def handle_correct_guess(data):
     emit("correct_guess", data, broadcast=True)
+
+@socketio.on("wrong_guess")
+def handle_wrong_guess(data):
+    emit("wrong_guess", data, broadcast=True)
 
 
 @socketio.on('chat_message')

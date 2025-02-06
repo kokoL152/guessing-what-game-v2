@@ -8,10 +8,11 @@
     <style>
         /* structure */
         .container {
-            max-width: 1400px;
+            width: 100%;
+            max-width: 1200px;
             padding: 20px;
             display: grid;
-            grid-template-columns: 300px 1fr 320px;
+            grid-template-columns: 250px 1fr 280px;
             gap: 20px;
         }
         /* video part */
@@ -111,7 +112,7 @@
             padding: 8px 16px;
             border-radius: 4px;
             border: none;
-            background: #007bff;
+            background: #d9d9d9;
             color: white;
             cursor: pointer;
         }
@@ -154,9 +155,17 @@
             margin-bottom: 0.5rem;
             padding: 0.5rem;
             border-radius: 0.25rem;
-            background-color: #ccffff;
+            background-color: #d9d9d9;
+        }
+        .message-explainer {
+            background-color: #dbeafe;  /* Light blue for explainer */
+            color: #1d4ed8;
         }
 
+        .message-guesser {
+            background-color: #dcfce7;  /* Light green for guesser */
+            color: #166534;
+        }
         .message .sender {
             font-weight: bold;
             color: #374151;
@@ -262,9 +271,9 @@
         let isDrawing = false;
 
         const words = [
-        "dog", "cat", "house", "tree", "car",
-        "book", "phone", "sun", "moon", "fish",
-        "bird", "shoe", "chair", "table", "door"
+        "umbrella", "whisper", "crystal", "tree", "banana",
+        "penguin", "jacket", "puzzle", "rainbow", "camera",
+        "bird", "dolphin", "chair", "table", "bounce"
         ];
 
         let currentWord = "";
@@ -366,13 +375,20 @@
 
         let correctGuesses = 0;
 
-        // Add this to handle when a guesser submits an answer
+        // when a guesser submits an answer
         socket.on('submit_guess', (data) => {
             const submittedGuess = data.guess.toLowerCase().trim();
+
             if (submittedGuess === currentWord.toLowerCase()) {
                 // correct guess add up on scoreboard
                 correctGuesses++;
                 
+                const successDiv = document.createElement('div');
+                successDiv.className = 'message';
+                successDiv.style.backgroundColor = '#90EE90'; // Light green for success
+                successDiv.textContent = 'Great, Keep on going!';
+                document.getElementById('messagesContainer').appendChild(successDiv);
+
                 //emit correct guess with updated score
                 socket.emit('correct_guess', {
                     gameId,
@@ -388,6 +404,23 @@
                 startTimer();
                 currentWord = getRandomWord();
                 document.getElementById('currentWord').textContent = currentWord;
+            }
+            else{
+                //alert('You are so close! Try again!');    
+
+                const wrong= document.createElement("div");
+                wrong.className = "message";
+                //change message background color
+                wrong.backgroundColor = "#d9d9d9";
+                //get the content from submitted guess
+                wrong.textContent = `Answer submitted : ${submittedGuess}`;
+                //show content in the chat
+                document.getElementById("messagesContainer").appendChild(wrong);
+                
+                socket.emit('wrong_guess', {
+                    gameId,
+                    message: 'You are so close! Try again!'
+                });
             }
         });
 
@@ -554,7 +587,15 @@
             // Handle receiving messages
             socket.on('chat_message', (data) => {
                 const messageDiv = document.createElement('div');
-                messageDiv.className = 'message';
+                //split role message color
+                if (data.role === 'explainer') {
+                    messageDiv.className = 'message message-explainer';
+                } else if (data.role === 'guesser') {
+                    messageDiv.className = 'message message-guesser';
+                }
+                
+                // Log to check what classes are being applied
+                console.log('Message classes:', messageDiv.className);
                 
                 const senderSpan = document.createElement('span');
                 senderSpan.className = 'sender';
