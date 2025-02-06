@@ -197,7 +197,6 @@
         <div class="video-section">
             <div class="video-container">
                 <video id="localVideo" class="video-feed" autoplay muted playsinline></video>
-                <video id="remoteVideo" class="video-feed" autoplay playsinline></video>
                 <div class="controls">
                     <button id="toggleVideo">Toggle Video</button>
                     <button id="toggleAudio">Toggle Audio</button>
@@ -283,7 +282,7 @@
             return words[randomIndex];
         }
 
-
+        
 
         // Show/hide answer section based on role
         document.addEventListener('DOMContentLoaded', () => {
@@ -293,6 +292,8 @@
             }
         });
 
+        let hasJoinedRoom = false;
+
         // sync canvas
         document.addEventListener('DOMContentLoaded', () => {
             const gameId = window.location.pathname.split('/').pop();
@@ -300,11 +301,13 @@
     
             // const { ctx } = initializeCanvas(true);  // true for drawer mode
             // setupSocketHandlers(socket, ctx);
-    
-            socket.emit('join', {
-                game_id: gameId,
-                role: 'explainer'
-            });
+            if(!hasJoinedRoom) {
+                socket.emit('join', {
+                    game_id: gameId,
+                    role: 'explainer'
+                });
+                hasJoinedRoom = true;
+            }
         });
         
         // WebRTC configuration
@@ -319,49 +322,73 @@
         let isVideoEnabled = true;
         let isAudioEnabled = true;
 
-        // Initialize WebRTC
-        async function initializeWebRTC() {
+
+        socket.onAny((eventName, ...args) => {
+            console.log(`SOCKET: Received any event: ${eventName}`, args);
+        });
+
+        async function startStream() {
+            console.log("Starting stream...");
+            
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({
+                // Get video stream
+                const stream = await navigator.mediaDevices.getUserMedia({
                     video: true,
-                    audio: true
+                    audio: false
                 });
-                document.getElementById('localVideo').srcObject = localStream;
+
+                // Show local video
+                document.getElementById('localVideo').srcObject = stream;
 
                 // Create peer connection
                 peerConnection = new RTCPeerConnection(configuration);
-                
-                // Add local stream to peer connection
-                localStream.getTracks().forEach(track => {
-                    peerConnection.addTrack(track, localStream);
+
+                peerConnection.addEventListener('connectionstatechange', (event) => {
+                    console.log('Connection state changed:', peerConnection.connectionState);
                 });
 
-                // Handle incoming stream
-                peerConnection.ontrack = event => {
-                    document.getElementById('remoteVideo').srcObject = event.streams[0];
-                };
+                // Add video track to peer connection
+                stream.getTracks().forEach(track => {
+                    peerConnection.addTrack(track, stream);
+                });
+
+                // Create offer
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+
+                console.log('Offer created:', offer);
+                
+                // Send offer to server
+                socket.emit('sender_offer', { offer: offer });
+
+                console.log('Stream started successfully!');
+                
 
                 // Handle ICE candidates
-                // peerConnection.onicecandidate = event => {
-                //     if (event.candidate) {
-                //         socket.emit('ice_candidate', {
-                //             game_id: gameId,
-                //             candidate: event.candidate
-                //         });
-                //     }
-                // };
-
-                // Join room
-                socket.emit('join', {
-                    game_id: gameId,
-                    role: role
-                });
-
+                peerConnection.onicecandidate = (event) => {
+                    if (event.candidate) {
+                        socket.emit('sender_ice_candidate', { candidate: event.candidate });
+                    }
+                };
             } catch (error) {
-                console.error('Error accessing media devices:', error);
+                console.error('Error starting stream:', error);
             }
         }
 
+        // Listen for answer from receiver
+        socket.on('receiver_answer', async (data) => {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+        });
+
+        // Listen for receiver ICE candidates
+        socket.on('receiver_ice_candidate', async (data) => {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        });
+
+        // Start streaming when page loads
+        window.onload = startStream;
+
+        
         // Socket event handlers for WebRTC signaling
         socket.on('user_joined', async (data) => {
             if (data.count === 2) {
@@ -613,10 +640,6 @@
         document.addEventListener('DOMContentLoaded', () => {
             initializeChat();
         });
-        
-
-        // Initialize WebRTC when page loads
-        initializeWebRTC();
     </script>
 </body>
 </html>

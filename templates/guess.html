@@ -178,7 +178,9 @@
     <div class="container">
         <div class="video-section">
             <div class="video-container">
-                <video id="userVideo" autoplay playsinline></video>
+                <video id="localVideo" autoplay playsinline></video>
+                <video id="remoteVideo" autoplay playsinline muted></video>
+
                 <!-- /*<video class="video-feed" autoplay playsinline></video>*/ -->
                 <div class="controls">
                     <button onclick="toggleVideo()">Toggle Video</button>
@@ -224,6 +226,8 @@
 
     </div>
     <script>
+
+        
         // Connect to Socket.IO
         const socket = io();
         let stream = null;
@@ -242,36 +246,100 @@
             });
         });
 
-        // Video controls
-        async function setupVideo() {
-            try {
-                stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: true, 
-                    audio: true 
-                });
-                // document.querySelector('.video-feed').srcObject = stream;
+        socket.onAny((eventName, ...args) => {
+            console.log(`SOCKET: Received any event: ${eventName}`, args);
+        });
 
-                // Important: Set the stream as the source for the video element
-                videoElement.srcObject = stream;
+        
+
+        // WebRTC configuration
+        const configuration = {
+            iceServers: [
+                { urls: 'stun:stun.l.google.com:19302' }
+            ]
+        };
+        let peerConnection;
+
+        function createPeerConnection() {
+            console.log('Creating peer connection...');
+            
+            peerConnection = new RTCPeerConnection(configuration);
+
+            peerConnection.addEventListener('connectionstatechange', (event) => {
+                console.log('Connection state changed:', peerConnection.connectionState);
+            });
+
+            // Handle incoming video track
+            peerConnection.ontrack = (event) => {
+                console.log('Received remote stream', event.streams[0]);
                 
-                // Play the video
-                await videoElement.play();
+                document.getElementById('remoteVideo').srcObject = event.streams[0];
+            };
 
-            } catch (err) {
-                console.error('Error accessing media devices:', err);
-            }
-
+            // Handle ICE candidates
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('receiver_ice_candidate', { candidate: event.candidate });
+                }
+            };
         }
+
+        // Listen for offer from sender
+        socket.on('sender_offer', async (data) => {
+            console.log('Received offer:', data.offer);
+            
+            createPeerConnection();
+
+            // Set remote description
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+
+            // Create answer
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            // Send answer back to sender
+            socket.emit('receiver_answer', { answer: answer });
+        });
+
+        // Listen for sender ICE candidates
+        socket.on('sender_ice_candidate', async (data) => {
+            console.log('Received ICE candidate:', data.candidate);
+            
+            await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        });
+        
+        
+
+
+        // Video controls
+        // async function setupVideo() {
+        //     try {
+        //         stream = await navigator.mediaDevices.getUserMedia({ 
+        //             video: true, 
+        //             audio: true 
+        //         });
+
+        //         // Important: Set the stream as the source for the video element
+        //         videoElement.srcObject = stream;
+                
+        //         // Play the video
+        //         await videoElement.play();
+
+        //     } catch (err) {
+        //         console.error('Error accessing media devices:', err);
+        //     }
+
+        // }
 
         function toggleVideo() {
             if (stream) {
                 const videoTrack = stream.getVideoTracks()[0];
                 videoTrack.enabled = !videoTrack.enabled;
             }
-            else {
-                // If stream doesn't exist, set it up
-                setupVideo();
-            }
+            // else {
+            //     // If stream doesn't exist, set it up
+            //     setupVideo();
+            // }
         }
 
         function toggleAudio() {
@@ -452,9 +520,9 @@
         });
 
         // Initialize video on page load
-        document.addEventListener('DOMContentLoaded', () => {
-            setupVideo();
-        });
+        // document.addEventListener('DOMContentLoaded', () => {
+        //     setupVideo();
+        // });
     </script>
 </body>
 </html>

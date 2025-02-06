@@ -93,6 +93,23 @@ def on_disconnect():
                     rooms[room]['timer'].cancel()
                 del rooms[room]
             break
+
+@socketio.on('sender_offer')
+def handle_sender_offer(data):
+    print("Sender offer")
+    emit('sender_offer', data, broadcast=True, include_self=False)
+
+@socketio.on('receiver_answer')
+def handle_receiver_answer(data):
+    emit('receiver_answer', data, broadcast=True, include_self=False)
+
+@socketio.on('sender_ice_candidate')
+def handle_sender_ice_candidate(data):
+    emit('sender_ice_candidate', data, broadcast=True, include_self=False)
+
+@socketio.on('receiver_ice_candidate')
+def handle_receiver_ice_candidate(data):
+    emit('receiver_ice_candidate', data, broadcast=True, include_self=False)
         
 if __name__ == '__main__':
     socketio.run(app, debug=True)
